@@ -156,19 +156,6 @@ def get_loss(end_points, config):
 
     Args:
         end_points: dict
-            {   
-                seed_xyz, seed_inds, vote_xyz,
-                center,
-                heading_scores, heading_residuals_normalized,
-                size_scores, size_residuals_normalized,
-                sem_cls_scores, #seed_logits,#
-                center_label,
-                heading_class_label, heading_residual_label,
-                size_class_label, size_residual_label,
-                sem_cls_label,
-                box_label_mask,
-                vote_label, vote_label_mask
-            }
         config: dataset config instance
     Returns:
         loss: pytorch scalar tensor

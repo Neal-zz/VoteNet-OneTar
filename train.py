@@ -38,9 +38,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint_path', default=None, help='Model checkpoint path [default: None]')
 parser.add_argument('--log_dir', default='log', help='Dump dir to save model checkpoint [default: log]')
 parser.add_argument('--dump_dir', default=None, help='Dump dir to save sample outputs [default: None]')
-parser.add_argument('--num_point', type=int, default=20000, help='Point Number [default: 20000]')
 parser.add_argument('--num_target', type=int, default=256, help='Proposal number [default: 256]')
-parser.add_argument('--cluster_sampling', default='vote_fps', help='Sampling strategy for vote clusters: vote_fps, seed_fps, random [default: vote_fps]')
+parser.add_argument('--cluster_sampling', default='random', help='Sampling strategy for vote clusters: vote_fps, seed_fps, random')
 parser.add_argument('--ap_iou_thresh', type=float, default=0.25, help='AP IoU threshold [default: 0.25]')
 parser.add_argument('--max_epoch', type=int, default=180, help='Epoch to run [default: 180]')
 parser.add_argument('--batch_size', type=int, default=8, help='Batch Size during training [default: 8]')
@@ -50,14 +49,13 @@ parser.add_argument('--bn_decay_step', type=int, default=20, help='Period of BN 
 parser.add_argument('--bn_decay_rate', type=float, default=0.5, help='Decay rate for BN decay [default: 0.5]')
 parser.add_argument('--lr_decay_steps', default='80,120,160', help='When to decay the learning rate (in epochs) [default: 80,120,160]')
 parser.add_argument('--lr_decay_rates', default='0.1,0.1,0.1', help='Decay rates for lr decay [default: 0.1,0.1,0.1]')
-parser.add_argument('--no_height', action='store_true', help='Do NOT use height signal in input.')
+parser.add_argument('--no_height', action='store_true', help='Do not use height signal in input.')
 parser.add_argument('--overwrite', action='store_true', help='Overwrite existing log and dump folders.')
 parser.add_argument('--dump_results', action='store_true', help='Dump results.')
 FLAGS = parser.parse_args()
 
 # ------------------------------------------------------------------------- GLOBAL CONFIG BEG
 BATCH_SIZE = FLAGS.batch_size
-NUM_POINT = FLAGS.num_point
 MAX_EPOCH = FLAGS.max_epoch
 BASE_LEARNING_RATE = FLAGS.learning_rate
 BN_DECAY_STEP = FLAGS.bn_decay_step
@@ -101,12 +99,12 @@ def my_worker_init_fn(worker_id):
 
 # Create Dataset and Dataloader
 sys.path.append(os.path.join(ROOT_DIR, 'syndata'))
-from synthetic_detection_dataset import SyntheticDetectionVotesDataset
-from model_util_synthetic import DatasetConfig
+from synthetic_dataset import SyntheticDataset
+from data_config import DatasetConfig
 DATASET_CONFIG = DatasetConfig()
-TRAIN_DATASET = SyntheticDetectionVotesDataset('train', num_points=NUM_POINT,
+TRAIN_DATASET = SyntheticDataset('train',
     augment=True, use_height=(not FLAGS.no_height))
-TEST_DATASET = SyntheticDetectionVotesDataset('val', num_points=NUM_POINT,
+TEST_DATASET = SyntheticDataset('val',
     augment=False, use_height=(not FLAGS.no_height))
 
 print("dataset size:",len(TRAIN_DATASET), len(TEST_DATASET))  # 数据集大小
@@ -119,7 +117,7 @@ print("iterations per epoch:", len(TRAIN_DATALOADER), len(TEST_DATALOADER))  # d
 # Init the model and optimzier
 MODEL = importlib.import_module('votenet') # import network module
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_input_channel = int(not FLAGS.no_height)*1
+num_input_channel = int(not FLAGS.no_height)
 
 Detector = MODEL.VoteNet
 
@@ -171,11 +169,8 @@ def adjust_learning_rate(optimizer, epoch):
 TRAIN_VISUALIZER = TfVisualizer(FLAGS, 'train')
 TEST_VISUALIZER = TfVisualizer(FLAGS, 'test')
 
-
 # Used for AP calculation
-CONFIG_DICT = {'use_3d_nms':True,
-    'nms_iou':0.25, 'conf_thresh':0.05,
-    'dataset_config':DATASET_CONFIG}
+CONFIG_DICT = {'nms_iou':0.25, 'conf_thresh':0.05, 'dataset_config':DATASET_CONFIG}
 
 # ------------------------------------------------------------------------- GLOBAL CONFIG END
 
@@ -218,9 +213,9 @@ def train_one_epoch():
                 stat_dict[key] = 0
 
 def evaluate_one_epoch():
-    stat_dict = {}  # collect statistics
     ap_calculator = APCalculator(ap_iou_thresh=FLAGS.ap_iou_thresh)
-    net.eval()  # set model to eval mode (for bn and dp)
+    stat_dict = {}  # collect statistics
+    net.eval()      # set model to eval mode (for bn and dp)
     for batch_idx, batch_data_label in enumerate(TEST_DATALOADER):
         if batch_idx % 10 == 0:
             print('Eval batch: %d'%(batch_idx))

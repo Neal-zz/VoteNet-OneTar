@@ -79,11 +79,6 @@ def box3d_vol(corners):
     c = np.sqrt(np.sum((corners[0,:] - corners[4,:])**2))
     return a*b*c
 
-def is_clockwise(p):
-    x = p[:,0]
-    y = p[:,1]
-    return np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)) > 0
-
 def box3d_iou(corners1, corners2):
     ''' Compute 3D bounding box IoU.
 
@@ -162,21 +157,6 @@ def get_iou(bb1, bb2):
     assert iou <= 1.0
     return iou
 
-def box2d_iou(box1, box2):
-    ''' Compute 2D bounding box IoU.
-
-    Input:
-        box1: tuple of (xmin,ymin,xmax,ymax)
-        box2: tuple of (xmin,ymin,xmax,ymax)
-    Output:
-        iou: 2D IoU scalar
-    '''
-    return get_iou({'x1':box1[0], 'y1':box1[1], 'x2':box1[2], 'y2':box1[3]}, \
-        {'x1':box2[0], 'y1':box2[1], 'x2':box2[2], 'y2':box2[3]})
-
-# -----------------------------------------------------------
-# Convert from box parameters to 
-# -----------------------------------------------------------
 def roty(t):
     """Rotation about the y-axis."""
     c = np.cos(t)
@@ -184,23 +164,6 @@ def roty(t):
     return np.array([[c,  0,  s],
                     [0,  1,  0],
                     [-s, 0,  c]])
-
-def roty_batch(t):
-    """Rotation about the y-axis.
-    t: (x1,x2,...xn)
-    return: (x1,x2,...,xn,3,3)
-    """
-    input_shape = t.shape
-    output = np.zeros(tuple(list(input_shape)+[3,3]))
-    c = np.cos(t)
-    s = np.sin(t)
-    output[...,0,0] = c
-    output[...,0,2] = s
-    output[...,1,1] = 1
-    output[...,2,0] = -s
-    output[...,2,2] = c
-    return output
-
 
 def get_3d_box(box_size, heading_angle, center):
     ''' box_size is array(l,w,h), heading_angle is radius clockwise from pos x axis, center is xyz of box center
@@ -219,60 +182,3 @@ def get_3d_box(box_size, heading_angle, center):
     corners_3d = np.transpose(corners_3d)
     return corners_3d
 
-if __name__=='__main__':
-
-    # Function for polygon ploting
-    import matplotlib
-    from matplotlib.patches import Polygon
-    from matplotlib.collections import PatchCollection
-    import matplotlib.pyplot as plt
-    def plot_polys(plist,scale=500.0):
-        fig, ax = plt.subplots()
-        patches = []
-        for p in plist:
-            poly = Polygon(np.array(p)/scale, True)
-            patches.append(poly)
-
-    pc = PatchCollection(patches, cmap=matplotlib.cm.jet, alpha=0.5)
-    colors = 100*np.random.rand(len(patches))
-    pc.set_array(np.array(colors))
-    ax.add_collection(pc)
-    plt.show()
- 
-    # Demo on ConvexHull
-    points = np.random.rand(30, 2)   # 30 random points in 2-D
-    hull = ConvexHull(points)
-    # **In 2D "volume" is is area, "area" is perimeter
-    print(('Hull area: ', hull.volume))
-    for simplex in hull.simplices:
-        print(simplex)
-
-    # Demo on convex hull overlaps
-    sub_poly = [(0,0),(300,0),(300,300),(0,300)]
-    clip_poly = [(150,150),(300,300),(150,450),(0,300)] 
-    inter_poly = polygon_clip(sub_poly, clip_poly)
-    print(poly_area(np.array(inter_poly)[:,0], np.array(inter_poly)[:,1]))
-    
-    # Test convex hull interaction function
-    rect1 = [(50,0),(50,300),(300,300),(300,0)]
-    rect2 = [(150,150),(300,300),(150,450),(0,300)] 
-    plot_polys([rect1, rect2])
-    inter, area = convex_hull_intersection(rect1, rect2)
-    print((inter, area))
-    if inter is not None:
-        print(poly_area(np.array(inter)[:,0], np.array(inter)[:,1]))
-    
-    print('------------------')
-    rect1 = [(0.30026005199835404, 8.9408694211408424), \
-             (-1.1571105364358421, 9.4686676477075533), \
-             (0.1777082043006144, 13.154404877812102), \
-             (1.6350787927348105, 12.626606651245391)]
-    rect1 = [rect1[0], rect1[3], rect1[2], rect1[1]]
-    rect2 = [(0.23908745901608636, 8.8551095691132886), \
-             (-1.2771419487733995, 9.4269062966181956), \
-             (0.13138836963152717, 13.161896351296868), \
-             (1.647617777421013, 12.590099623791961)]
-    rect2 = [rect2[0], rect2[3], rect2[2], rect2[1]]
-    plot_polys([rect1, rect2])
-    inter, area = convex_hull_intersection(rect1, rect2)
-    print((inter, area))

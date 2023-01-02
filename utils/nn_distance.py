@@ -1,16 +1,6 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# 
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
-""" Chamfer distance in Pytorch.
-Author: Charles R. Qi
-"""
-
 import torch
 import torch.nn as nn
 import numpy as np
-
 
 def huber_loss(error, delta=1.0):
     """
@@ -60,35 +50,4 @@ def nn_distance(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     dist2, idx2 = torch.min(pc_dist, dim=1) # (B,M)
     return dist1, idx1, dist2, idx2
 
-def demo_nn_distance():
-    np.random.seed(0)
-    pc1arr = np.random.random((1,5,3))
-    pc2arr = np.random.random((1,6,3))
-    pc1 = torch.from_numpy(pc1arr.astype(np.float32))
-    pc2 = torch.from_numpy(pc2arr.astype(np.float32))
-    dist1, idx1, dist2, idx2 = nn_distance(pc1, pc2)
-    print(dist1)
-    print(idx1)
-    dist = np.zeros((5,6))
-    for i in range(5):
-        for j in range(6):
-            dist[i,j] = np.sum((pc1arr[0,i,:] - pc2arr[0,j,:]) ** 2)
-    print(dist)
-    print('-'*30)
-    print('L1smooth dists:')
-    dist1, idx1, dist2, idx2 = nn_distance(pc1, pc2, True)
-    print(dist1)
-    print(idx1)
-    dist = np.zeros((5,6))
-    for i in range(5):
-        for j in range(6):
-            error = np.abs(pc1arr[0,i,:] - pc2arr[0,j,:])
-            quad = np.minimum(error, 1.0)
-            linear = error - quad
-            loss = 0.5*quad**2 + 1.0*linear
-            dist[i,j] = np.sum(loss)
-    print(dist)
 
-
-if __name__ == '__main__':
-    demo_nn_distance()

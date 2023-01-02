@@ -9,15 +9,8 @@ ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 from eval_det import eval_det_cls, eval_det_multiprocessing
 from eval_det import get_iou_obb
-from nms import nms_2d_faster, nms_3d_faster
+from nms import nms_2d_faster
 from box_util import get_3d_box
-sys.path.append(os.path.join(ROOT_DIR, 'sunrgbd'))
-
-# copy from sunrgbd_utils.py. 作用是什么？
-def extract_pc_in_box3d(pc, box3d):
-    ''' pc: (N,3), box3d: (8,3) '''
-    box3d_roi_inds = in_hull(pc[:,0:3], box3d)
-    return pc[box3d_roi_inds,:], box3d_roi_inds
 
 def flip_axis_to_camera(pc):
     ''' 从点云坐标系转换到相机坐标系
@@ -88,41 +81,24 @@ def parse_predictions(end_points, config_dict):
     obj_logits = end_points['objectness_scores'].detach().cpu().numpy()
     # B, num_proposal
     obj_prob = softmax(obj_logits)[:,:,1]
-    if not config_dict['use_3d_nms']:
-        pred_mask = np.zeros((bsize, K))
-        for i in range(bsize):
-            boxes_2d_with_prob = np.zeros((K,5))
-            for j in range(K):
-                boxes_2d_with_prob[j,0] = np.min(pred_corners_3d_upright_camera[i,j,:,0])
-                boxes_2d_with_prob[j,2] = np.max(pred_corners_3d_upright_camera[i,j,:,0])
-                boxes_2d_with_prob[j,1] = np.min(pred_corners_3d_upright_camera[i,j,:,2])
-                boxes_2d_with_prob[j,3] = np.max(pred_corners_3d_upright_camera[i,j,:,2])
-                boxes_2d_with_prob[j,4] = obj_prob[i,j]
-            nonempty_box_inds = np.array(range(K))  # [0,1,2,K-1]
-            pick = nms_2d_faster(boxes_2d_with_prob, config_dict['nms_iou'])
-            assert(len(pick)>0)
-            # B, num_proposal
-            pred_mask[i, nonempty_box_inds[pick]] = 1
-        end_points['pred_mask'] = pred_mask
-    elif config_dict['use_3d_nms']:
-        pred_mask = np.zeros((bsize, K))
-        for i in range(bsize):
-            # minx, miny, minz, maxx, maxy, maxz, probability
-            boxes_3d_with_prob = np.zeros((K,7))
-            for j in range(K):
-                boxes_3d_with_prob[j,0] = np.min(pred_corners_3d_upright_camera[i,j,:,0])
-                boxes_3d_with_prob[j,1] = np.min(pred_corners_3d_upright_camera[i,j,:,1])
-                boxes_3d_with_prob[j,2] = np.min(pred_corners_3d_upright_camera[i,j,:,2])
-                boxes_3d_with_prob[j,3] = np.max(pred_corners_3d_upright_camera[i,j,:,0])
-                boxes_3d_with_prob[j,4] = np.max(pred_corners_3d_upright_camera[i,j,:,1])
-                boxes_3d_with_prob[j,5] = np.max(pred_corners_3d_upright_camera[i,j,:,2])
-                boxes_3d_with_prob[j,6] = obj_prob[i,j]
-            nonempty_box_inds = np.array(range(K))  # [0,1,2,K-1]
-            pick = nms_3d_faster(boxes_3d_with_prob, config_dict['nms_iou'])
-            assert(len(pick)>0)
-            # B, num_proposal
-            pred_mask[i, nonempty_box_inds[pick]] = 1
-        end_points['pred_mask'] = pred_mask
+    # use 2d nms
+    pred_mask = np.zeros((bsize, K))
+    for i in range(bsize):
+        # minx, minz, maxx, maxz, probability
+        boxes_2d_with_prob = np.zeros((K,5))
+        for j in range(K):
+            boxes_2d_with_prob[j,0] = np.min(pred_corners_3d_upright_camera[i,j,:,0])
+            boxes_2d_with_prob[j,2] = np.max(pred_corners_3d_upright_camera[i,j,:,0])
+            boxes_2d_with_prob[j,1] = np.min(pred_corners_3d_upright_camera[i,j,:,2])
+            boxes_2d_with_prob[j,3] = np.max(pred_corners_3d_upright_camera[i,j,:,2])
+            boxes_2d_with_prob[j,4] = obj_prob[i,j]
+        nonempty_box_inds = np.array(range(K))  # [0,1,2,K-1]
+        pick = nms_2d_faster(boxes_2d_with_prob, config_dict['nms_iou'])
+        assert(len(pick)>0)
+        # B, num_proposal
+        pred_mask[i, nonempty_box_inds[pick]] = 1
+    end_points['pred_mask'] = pred_mask
+
 
     # 根据 pred_mask，保存 bbox 的 8 个角点
     batch_pred_map_cls = []

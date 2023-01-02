@@ -22,7 +22,7 @@ class Pointnet2Backbone(nn.Module):
        ----------
        input_feature_dim: int
             Number of input channels in the feature descriptor for each point.
-            e.g. 3 for RGB.
+            e.g. 1 for height.
     """
     def __init__(self, input_feature_dim=0):
         super().__init__()
